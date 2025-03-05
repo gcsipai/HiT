@@ -21,6 +21,3 @@ Installs Lazydocker, a terminal UI for Docker.
 Deploys Portainer, a web-based Docker management tool, as a Docker container.
 
 Provides instructions for accessing Portainer and using Lazydocker.
-
-Let me know if you need further assistance!
-
