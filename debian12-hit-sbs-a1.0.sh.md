@@ -57,4 +57,3 @@ Customize the domain and other settings during the Samba AD DC provisioning step
 
 Test the script in a lab environment before deploying it in production.
 
-Let me know if you need further assistance!
