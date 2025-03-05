@@ -4,7 +4,7 @@
 
 # Update and upgrade the system
 echo "Updating and upgrading the system..."
-apt update && sudo apt upgrade -y
+apt update && apt upgrade -y
 
 # Install necessary packages
 echo "Installing Samba4 AD DC, SWAT, and CUPS..."
