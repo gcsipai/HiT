@@ -1,0 +1,77 @@
+# Reset configuration (optional, use with caution)
+/system reset-configuration no-defaults=yes skip-backup=yes
+
+# Configure WAN interface (ether1)
+/interface ethernet
+set ether1 name=ether1-wan
+/ip address
+add address=195.199.199.25/24 interface=ether1-wan
+/ip route
+add gateway=195.199.199.254
+/ip dns
+set servers=195.199.255.10,195.199.255.11
+
+# Configure LAN interfaces (ether2-ether8) and bridge
+/interface bridge
+add name=bridge1
+/interface ethernet
+set [ find where name ~ "ether[2-8]" ] name=ether2-lan,ether3-lan,ether4-lan,ether5-lan,ether6-lan,ether7-lan,ether8-lan
+/interface bridge port
+add bridge=bridge1 interface=ether2-lan
+add bridge=bridge1 interface=ether3-lan
+add bridge=bridge1 interface=ether4-lan
+add bridge=bridge1 interface=ether5-lan
+add bridge=bridge1 interface=ether6-lan
+add bridge=bridge1 interface=ether7-lan
+add bridge=bridge1 interface=ether8-lan
+
+# Configure LAN IP and DHCP
+/ip address
+add address=10.0.0.1/22 interface=bridge1
+/ip pool
+add name=lan-dhcp-pool ranges=10.0.2.1-10.0.3.200
+/ip dhcp-server
+add interface=bridge1 address-pool=lan-dhcp-pool disabled=no
+/ip dhcp-server network
+add address=10.0.0.0/22 gateway=10.0.0.1 dns-server=10.0.0.10,10.0.0.11
+
+# Configure NAT for LAN traffic
+/ip firewall nat
+add chain=srcnat out-interface=ether1-wan action=masquerade
+
+# Configure L2TP VPN Server
+/interface l2tp-server server
+set enabled=yes default-profile=default-encryption
+/ip pool
+add name=vpn-pool ranges=10.100.100.2-10.100.100.254
+/ppp profile
+set default-encryption local-address=10.100.100.1 remote-address=vpn-pool
+/ppp secret
+add name=vpn-user password=strongpassword service=l2tp
+/ip firewall nat
+add chain=srcnat src-address=10.100.100.0/24 out-interface=ether1-wan action=masquerade
+
+# Configure DNS for VPN clients
+/ip dns
+set allow-remote-requests=yes servers=10.0.0.10,10.0.0.11
+
+# Configure Firewall
+/ip firewall filter
+# FastTrack for established connections
+add chain=forward action=fasttrack-connection connection-state=established,related
+# Allow established/related connections
+add chain=forward action=accept connection-state=established,related
+# Drop invalid connections
+add chain=forward action=drop connection-state=invalid
+# Allow LAN to access WAN
+add chain=forward action=accept in-interface=bridge1 out-interface=ether1-wan
+# Allow VPN to access LAN
+add chain=forward action=accept in-interface=l2tp-out1 out-interface=bridge1
+# Drop everything else
+add chain=forward action=drop
+
+# Enable logging (optional)
+/ip firewall filter
+add chain=forward action=log log-prefix="Forward-Dropped: "
+add chain=input action=log log-prefix="Input-Dropped: "
+add chain=output action=log log-prefix="Output-Dropped: "
