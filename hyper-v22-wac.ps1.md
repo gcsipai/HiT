@@ -48,4 +48,4 @@ Firewall Configuration: Ensure the firewall allows inbound traffic on the specif
 
 Logs: If the installation fails, check the log file at %TEMP%\WACInstall.log for details.
 
-This script provides a fully automated way to install and configure Windows Admin Center on Windows Hyper-V Server 2022. Let me know if you need further assistance!
+This script provides a fully automated way to install and configure Windows Admin Center on Windows Hyper-V Server 2022.
