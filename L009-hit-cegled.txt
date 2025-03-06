@@ -1,0 +1,62 @@
+# Configure WAN Interface (sfp1)
+/ip address add address=195.199.199.50/24 interface=sfp1
+/ip route add gateway=195.199.199.1
+
+# Configure DNS Servers
+/ip dns set servers=195.199.188.1,195.199.188.2
+
+# Configure LAN Interface (ether1) and NAT for Bridge1
+/ip address add address=10.0.0.1/22 interface=ether1
+/ip firewall nat add chain=srcnat out-interface=sfp1 action=masquerade
+
+# Create Bridge1 and add interfaces (ether1-ether4)
+/interface bridge add name=bridge1
+/interface bridge port add bridge=bridge1 interface=ether1
+/interface bridge port add bridge=bridge1 interface=ether2
+/interface bridge port add bridge=bridge1 interface=ether3
+/interface bridge port add bridge=bridge1 interface=ether4
+
+# Configure DHCP Server for Bridge1 (10.0.0.0/22)
+/ip pool add name=dhcp_pool1 ranges=10.0.2.10-10.0.3.200
+/ip dhcp-server add name=dhcp1 interface=bridge1 address-pool=dhcp_pool1 disabled=no
+/ip dhcp-server network add address=10.0.0.0/22 gateway=10.0.0.1 dns-server=10.0.0.10,10.0.0.11,10.0.0.12
+
+# Configure LAN Interface (ether5) and NAT for Bridge2
+/ip address add address=10.1.0.1/22 interface=ether5
+/ip firewall nat add chain=srcnat out-interface=sfp1 action=masquerade
+
+# Create Bridge2 and add interfaces (ether5-ether8)
+/interface bridge add name=bridge2
+/interface bridge port add bridge=bridge2 interface=ether5
+/interface bridge port add bridge=bridge2 interface=ether6
+/interface bridge port add bridge=bridge2 interface=ether7
+/interface bridge port add bridge=bridge2 interface=ether8
+
+# Configure DHCP Server for Bridge2 (10.1.0.0/22)
+/ip pool add name=dhcp_pool2 ranges=10.1.0.1-10.1.3.200
+/ip dhcp-server add name=dhcp2 interface=bridge2 address-pool=dhcp_pool2 disabled=no
+/ip dhcp-server network add address=10.1.0.0/22 gateway=10.1.0.1 dns-server=10.0.0.10,10.0.0.11,10.0.0.12
+
+# Port Forwarding Rules
+# Forward ports 80-443 to 10.0.0.5
+/ip firewall nat add chain=dstnat in-interface=sfp1 protocol=tcp dst-port=80-443 action=dst-nat to-addresses=10.0.0.5 to-ports=80-443
+
+# Forward port 1194 to 10.0.0.12
+/ip firewall nat add chain=dstnat in-interface=sfp1 protocol=tcp dst-port=1194 action=dst-nat to-addresses=10.0.0.12 to-ports=1194
+
+# Forward port 8080 to 10.0.0.30
+/ip firewall nat add chain=dstnat in-interface=sfp1 protocol=tcp dst-port=8080 action=dst-nat to-addresses=10.0.0.30 to-ports=8080
+
+# Fast Track (Enable Fast Path for established connections)
+/ip firewall filter add chain=forward action=fasttrack-connection connection-state=established,related
+/ip firewall filter add chain=forward action=accept connection-state=established,related
+
+# Port Scan Filtering
+/ip firewall filter add chain=input protocol=tcp psd=21,3s,3,1 action=drop comment="Port Scan Protection TCP"
+/ip firewall filter add chain=input protocol=udp psd=21,3s,3,1 action=drop comment="Port Scan Protection UDP"
+
+# Enable SNMP
+/snmp set enabled=yes contact="admin@example.com" location="Office"
+
+# Save Configuration
+/system backup save name=initial_config
