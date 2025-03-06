@@ -1,0 +1,68 @@
+# Configure WAN1 (ether1)
+/interface ethernet
+set ether1 name=wan1
+/ip address
+add address=195.199.199.120/24 interface=wan1
+/ip route
+add gateway=195.199.199.1 distance=1 check-gateway=ping comment="WAN1 Primary Route"
+
+# Configure WAN2 (ether2)
+/interface ethernet
+set ether2 name=wan2
+/ip address
+add address=195.188.188.100/24 interface=wan2
+/ip route
+add gateway=195.188.188.1 distance=2 check-gateway=ping comment="WAN2 Backup Route"
+
+# Configure DNS
+/ip dns
+set servers=195.255.255.1,195.255.255.2
+
+# Configure LAN (ether3)
+/interface ethernet
+set ether3 name=lan
+/ip address
+add address=10.1.1.1/20 interface=lan
+/ip pool
+add name=dhcp_pool ranges=10.1.1.1-10.1.5.200
+/ip dhcp-server
+add interface=lan address-pool=dhcp_pool disabled=no
+/ip dhcp-server network
+add address=10.1.0.0/20 gateway=10.1.1.1 dns-server=195.255.255.1,195.255.255.2
+
+# Configure NAT (Masquerade)
+/ip firewall nat
+add chain=srcnat out-interface=wan1 action=masquerade comment="NAT for WAN1"
+add chain=srcnat out-interface=wan2 action=masquerade comment="NAT for WAN2"
+
+# Configure FastTrack for better performance
+/ip firewall filter
+add chain=forward action=fasttrack-connection connection-state=established,related comment="FastTrack Established/Related"
+add chain=forward action=accept connection-state=established,related comment="Allow Established/Related"
+
+# Configure Failover Routing
+/ip route
+add dst-address=0.0.0.0/0 gateway=195.199.199.1 distance=1 check-gateway=ping comment="Primary WAN1 Route"
+add dst-address=0.0.0.0/0 gateway=195.188.188.1 distance=2 check-gateway=ping comment="Backup WAN2 Route"
+
+# Configure Firewall Rules for Security
+/ip firewall filter
+# Allow established/related connections
+add chain=input action=accept connection-state=established,related comment="Allow Established/Related"
+# Drop invalid connections
+add chain=input action=drop connection-state=invalid comment="Drop Invalid"
+# Allow ICMP (ping)
+add chain=input protocol=icmp action=accept comment="Allow ICMP"
+# Allow SSH, Winbox, and WebFig access (adjust ports as needed)
+add chain=input protocol=tcp dst-port=22,8291,80 action=accept comment="Allow Management Access"
+# Drop everything else
+add chain=input action=drop comment="Drop All Else"
+
+# Protect against UDP scans
+/ip firewall filter
+add chain=input protocol=udp action=drop comment="Drop UDP Scans"
+
+# Enable logging for dropped packets (optional)
+/ip firewall filter
+add chain=input action=log log-prefix="Dropped Input Packet" comment="Log Dropped Input Packets"
+add chain=forward action=log log-prefix="Dropped Forward Packet" comment="Log Dropped Forward Packets"
