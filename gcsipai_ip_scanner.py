@@ -27,7 +27,7 @@ def clear_screen():
 
 def main():
     clear_screen()
-    print("IP Scanner for Windows 11")
+    print("Gcsipai IP Scanner for Windows 11")
     print("-------------------------")
 
     # Define the network range to scan (e.g., "10.0.0.1/24")
