@@ -1,0 +1,110 @@
+# Set up WAN interface (ether1)
+/interface ethernet
+set ether1 name=ether1-wan
+
+/ip address
+add address=88.222.88.88/24 interface=ether1-wan
+
+/ip route
+add gateway=88.222.88.254
+
+/ip dns
+set servers=88.88.88.88,100.100.100.100
+
+# Set up LAN interfaces (ether2-ether4) and bridge
+/interface bridge
+add name=bridge-lan
+/interface ethernet
+set ether2 name=ether2-lan
+set ether3 name=ether3-lan
+set ether4 name=ether4-lan
+/interface bridge port
+add bridge=bridge-lan interface=ether2-lan
+add bridge=bridge-lan interface=ether3-lan
+add bridge=bridge-lan interface=ether4-lan
+
+/ip address
+add address=10.168.0.1/24 interface=bridge-lan
+
+# Set up NAT for LAN
+/ip firewall nat
+add chain=srcnat out-interface=ether1-wan action=masquerade
+
+# Set up DHCP for LAN (pool1)
+/ip pool
+add name=pool1 ranges=10.168.0.50-10.168.0.120
+
+/ip dhcp-server
+add interface=bridge-lan address-pool=pool1 disabled=no
+
+/ip dhcp-server network
+add address=10.168.0.0/24 gateway=10.168.0.1 dns-server=10.168.0.10,10.168.11
+
+# Set up ether5 as a separate LAN interface
+/interface ethernet
+set ether5 name=ether5-lan
+
+/ip address
+add address=10.168.1.1/24 interface=ether5-lan
+
+# Set up NAT for ether5
+/ip firewall nat
+add chain=srcnat out-interface=ether1-wan action=masquerade
+
+# Set up DHCP for ether5 (pool2)
+/ip pool
+add name=pool2 ranges=10.168.1.10-10.168.1.200
+
+/ip dhcp-server
+add interface=ether5-lan address-pool=pool2 disabled=no
+
+/ip dhcp-server network
+add address=10.168.1.0/24 gateway=10.168.1.1 dns-server=10.168.0.10,10.168.11
+
+# Set up L2TP/IPsec VPN server
+/ip pool
+add name=vpn-pool ranges=10.100.100.2-10.100.100.254
+
+/ppp profile
+set *0 local-address=10.100.100.1 remote-address=vpn-pool
+
+/interface l2tp-server server
+set enabled=yes default-profile=default-encryption ipsec-secret=YourStrongIPsecSecret
+
+/ppp secret
+add name=vpn2025 password=vpn2025 service=l2tp
+
+/ip firewall nat
+add chain=srcnat src-address=10.100.100.0/24 action=masquerade
+
+# Port forwarding rules
+/ip firewall nat
+add chain=dstnat dst-address=88.222.88.88 protocol=tcp dst-port=5000 action=dst-nat to-addresses=10.168.0.10 to-ports=5000
+add chain=dstnat dst-address=88.222.88.88 protocol=tcp dst-port=80-443 action=dst-nat to-addresses=10.168.0.12 to-ports=80-443
+
+# Enable hairpin NAT for port forwarding
+/ip firewall nat
+add chain=srcnat src-address=10.168.0.0/24 dst-address=10.168.0.10 protocol=tcp dst-port=5000 action=masquerade
+add chain=srcnat src-address=10.168.0.0/24 dst-address=10.168.0.12 protocol=tcp dst-port=80-443 action=masquerade
+
+# Security settings
+/ip firewall filter
+add chain=input action=drop protocol=tcp psd=21,24s,3,1
+add chain=input action=drop protocol=udp
+add chain=forward action=fasttrack-connection connection-state=established,related
+add chain=forward action=accept connection-state=established,related
+add chain=forward action=drop connection-state=invalid
+
+# Disable WebFig and enable SNMP
+/ip service
+set www disabled=yes
+set api disabled=yes
+set api-ssl disabled=yes
+set snmp disabled=no
+
+# Save configuration
+/system identity
+set name=MikroTik-HexS
+
+/system backup
+save name=initial-config
