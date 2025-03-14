@@ -24,7 +24,6 @@ def change_hostname():
     def change():
         try:
             update_progress(20)
-            # Számítógépnév változtatása PowerShell paranccsal
             command = f"Rename-Computer -NewName {new_hostname} -Force"
             subprocess.run(["powershell", "-Command", command], check=True)
             update_progress(100)
@@ -42,18 +41,15 @@ def toggle_ipv6():
     def toggle():
         try:
             update_progress(20)
-            # IPv6 állapotának lekérése
             result = subprocess.run(
                 ["powershell", "Get-NetAdapterBinding -ComponentID ms_tcpip6"],
                 capture_output=True, text=True
             )
             if "Enabled" in result.stdout:
-                # IPv6 kikapcsolása
                 subprocess.run(["powershell", "Disable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
                 update_progress(100)
                 messagebox.showinfo("Siker", "IPv6 sikeresen kikapcsolva.")
             else:
-                # IPv6 bekapcsolása
                 subprocess.run(["powershell", "Enable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
                 update_progress(100)
                 messagebox.showinfo("Siker", "IPv6 sikeresen bekapcsolva.")
@@ -69,10 +65,8 @@ def sync_time():
     def sync():
         try:
             update_progress(20)
-            # Időszinkronizációs szerver beállítása (Budapesti szerver)
             subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/config /syncfromflags:manual /manualpeerlist:ntp.iif.hu' -Verb RunAs"], check=True)
             update_progress(50)
-            # Szolgáltatás újraindítása
             subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/resync' -Verb RunAs"], check=True)
             update_progress(100)
             messagebox.showinfo("Siker", "Az idő sikeresen szinkronizálva a magyarországi szerverrel.")
@@ -88,10 +82,8 @@ def install_snmp():
     def install():
         try:
             update_progress(20)
-            # SNMP szolgáltatás telepítése
             subprocess.run(["powershell", "Add-WindowsCapability -Online -Name SNMP.Client~~~~0.0.1.0"], check=True)
             update_progress(50)
-            # SNMP szolgáltatás bekapcsolása
             subprocess.run(["powershell", "Set-Service -Name SNMP -StartupType Automatic"], check=True)
             subprocess.run(["powershell", "Start-Service -Name SNMP"], check=True)
             update_progress(100)
@@ -108,7 +100,6 @@ def disable_bitlocker():
     def disable():
         try:
             update_progress(20)
-            # BitLocker kikapcsolása PowerShell paranccsal
             subprocess.run(["powershell", "Disable-BitLocker -MountPoint C:"], check=True)
             update_progress(100)
             messagebox.showinfo("Siker", "A BitLocker sikeresen kikapcsolva.")
@@ -130,7 +121,6 @@ def add_user():
     def add():
         try:
             update_progress(20)
-            # Felhasználó hozzáadása PowerShell paranccsal
             command = f'New-LocalUser -Name "{username}" -Password (ConvertTo-SecureString "{password}" -AsPlainText -Force)'
             subprocess.run(["powershell", "-Command", command], check=True)
             update_progress(100)
@@ -147,7 +137,6 @@ def enable_smbv1():
     def enable():
         try:
             update_progress(20)
-            # SMBv1 protokoll bekapcsolása PowerShell paranccsal
             subprocess.run(["powershell", "Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"], check=True)
             update_progress(100)
             messagebox.showinfo("Siker", "Az SMBv1 protokoll sikeresen bekapcsolva.")
@@ -178,7 +167,6 @@ def join_domain():
     def join():
         try:
             update_progress(20)
-            # Tartományhoz csatlakozás PowerShell paranccsal
             command = f'Add-Computer -DomainName "{domain}" -Credential (New-Object System.Management.Automation.PSCredential("{username}", (ConvertTo-SecureString "{password}" -AsPlainText -Force))) -Restart'
             subprocess.run(["powershell", "-Command", command], check=True)
             update_progress(100)
@@ -190,68 +178,145 @@ def join_domain():
 
     threading.Thread(target=join).start()
 
+# Rendszerinformációk lekérése
+def get_system_info():
+    try:
+        cpu_info = subprocess.run(["powershell", "Get-WmiObject Win32_Processor | Select-Object -ExpandProperty Name"], capture_output=True, text=True)
+        memory_info = subprocess.run(["powershell", "Get-WmiObject Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum | Select-Object -ExpandProperty Sum"], capture_output=True, text=True)
+        messagebox.showinfo("Rendszerinformációk", f"CPU: {cpu_info.stdout}\nMemória: {int(memory_info.stdout) / 1024 / 1024 / 1024:.2f} GB")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a rendszerinformációk lekérése közben: {e}")
+
+# Tűzfal bekapcsolása
+def enable_firewall():
+    try:
+        subprocess.run(["powershell", "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True"], check=True)
+        messagebox.showinfo("Siker", "A tűzfal sikeresen bekapcsolva.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a tűzfal bekapcsolása közben: {e}")
+
+# Tűzfal kikapcsolása
+def disable_firewall():
+    try:
+        subprocess.run(["powershell", "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False"], check=True)
+        messagebox.showinfo("Siker", "A tűzfal sikeresen kikapcsolva.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a tűzfal kikapcsolása közben: {e}")
+
+# Távoli asztal bekapcsolása
+def enable_remote_desktop():
+    try:
+        subprocess.run(["powershell", "Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server' -Name fDenyTSConnections -Value 0"], check=True)
+        subprocess.run(["powershell", "Enable-NetFirewallRule -DisplayGroup 'Távoli asztal'"], check=True)
+        messagebox.showinfo("Siker", "A távoli asztal sikeresen bekapcsolva.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a távoli asztal bekapcsolása közben: {e}")
+
+# Windows Update keresése és telepítése
+def run_windows_update():
+    def update():
+        try:
+            update_progress(20)
+            subprocess.run(["powershell", "Start-Process wuauclt -ArgumentList '/detectnow' -Verb RunAs"], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", "A Windows Update keresése elindítva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt a Windows Update keresése közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=update).start()
+
 # Grafikus felület létrehozása
 root = tk.Tk()
-root.title("Rendszer Beállítások")
+root.title("SySTool2025")
+
+# Ablak mérete és felbontás
+root.geometry("600x800")  # Állítsd be a kívánt méretet
+root.resizable(False, False)  # Letiltja az ablak átméretezését
 
 # Számítógépnév megjelenítése
 computer_name = get_computer_name()
 computer_name_label = tk.Label(root, text=f"Aktuális számítógépnév: {computer_name}")
-computer_name_label.pack(pady=10)
+computer_name_label.grid(row=0, column=0, columnspan=2, pady=10)
 
 # Számítógépnév változtatása
 hostname_label = tk.Label(root, text="Új számítógépnév:")
-hostname_label.pack(pady=5)
+hostname_label.grid(row=1, column=0, pady=5)
 
 hostname_entry = tk.Entry(root)
-hostname_entry.pack(pady=5)
+hostname_entry.grid(row=1, column=1, pady=5)
 
 hostname_button = tk.Button(root, text="Számítógépnév változtatása", command=change_hostname)
-hostname_button.pack(pady=10)
+hostname_button.grid(row=2, column=0, columnspan=2, pady=10)
 
 # IPv6 be- és kikapcsolása
 ipv6_button = tk.Button(root, text="IPv6 be/kikapcsolása", command=toggle_ipv6)
-ipv6_button.pack(pady=10)
+ipv6_button.grid(row=3, column=0, columnspan=2, pady=10)
 
 # Idő szinkronizálása magyarországi szerverrel
 time_sync_button = tk.Button(root, text="Idő szinkronizálása (Magyarország)", command=sync_time)
-time_sync_button.pack(pady=10)
+time_sync_button.grid(row=4, column=0, columnspan=2, pady=10)
 
 # SNMP szolgáltatás telepítése és bekapcsolása
 snmp_button = tk.Button(root, text="SNMP telepítése és bekapcsolása", command=install_snmp)
-snmp_button.pack(pady=10)
+snmp_button.grid(row=5, column=0, columnspan=2, pady=10)
 
 # BitLocker kikapcsolása
 bitlocker_button = tk.Button(root, text="BitLocker kikapcsolása", command=disable_bitlocker)
-bitlocker_button.pack(pady=10)
+bitlocker_button.grid(row=6, column=0, columnspan=2, pady=10)
 
 # Felhasználó hozzáadása
 user_label = tk.Label(root, text="Felhasználónév:")
-user_label.pack(pady=5)
+user_label.grid(row=7, column=0, pady=5)
 
 user_entry = tk.Entry(root)
-user_entry.pack(pady=5)
+user_entry.grid(row=7, column=1, pady=5)
 
 password_label = tk.Label(root, text="Jelszó:")
-password_label.pack(pady=5)
+password_label.grid(row=8, column=0, pady=5)
 
 password_entry = tk.Entry(root, show="*")
-password_entry.pack(pady=5)
+password_entry.grid(row=8, column=1, pady=5)
 
 add_user_button = tk.Button(root, text="Felhasználó hozzáadása", command=add_user)
-add_user_button.pack(pady=10)
+add_user_button.grid(row=9, column=0, columnspan=2, pady=10)
 
 # SMBv1 protokoll bekapcsolása
 smbv1_button = tk.Button(root, text="SMBv1 protokoll bekapcsolása", command=enable_smbv1)
-smbv1_button.pack(pady=10)
+smbv1_button.grid(row=10, column=0, columnspan=2, pady=10)
 
 # Tartományhoz csatlakozás
 domain_button = tk.Button(root, text="Tartományhoz csatlakozás", command=join_domain)
-domain_button.pack(pady=10)
+domain_button.grid(row=11, column=0, columnspan=2, pady=10)
+
+# Rendszerinformációk lekérése
+system_info_button = tk.Button(root, text="Rendszerinformációk", command=get_system_info)
+system_info_button.grid(row=12, column=0, columnspan=2, pady=10)
+
+# Tűzfal bekapcsolása
+firewall_enable_button = tk.Button(root, text="Tűzfal bekapcsolása", command=enable_firewall)
+firewall_enable_button.grid(row=13, column=0, columnspan=2, pady=10)
+
+# Tűzfal kikapcsolása
+firewall_disable_button = tk.Button(root, text="Tűzfal kikapcsolása", command=disable_firewall)
+firewall_disable_button.grid(row=14, column=0, columnspan=2, pady=10)
+
+# Távoli asztal bekapcsolása
+remote_desktop_button = tk.Button(root, text="Távoli asztal bekapcsolása", command=enable_remote_desktop)
+remote_desktop_button.grid(row=15, column=0, columnspan=2, pady=10)
+
+# Windows Update keresése
+windows_update_button = tk.Button(root, text="Windows Update keresése", command=run_windows_update)
+windows_update_button.grid(row=16, column=0, columnspan=2, pady=10)
 
 # Folyamatcsík
 progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
-progress.pack(pady=20)
+progress.grid(row=17, column=0, columnspan=2, pady=20)
+
+# Lábléc hozzáadása
+footer_label = tk.Label(root, text="SySTool2025 @ HiT", font=("Arial", 8), fg="gray")
+footer_label.grid(row=18, column=0, columnspan=2, pady=10)
 
 # Főciklus indítása
 root.mainloop()
