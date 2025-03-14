@@ -74,6 +74,31 @@ def disable_bitlocker():
     except subprocess.CalledProcessError as e:
         messagebox.showerror("Hiba", f"Hiba történt a BitLocker kikapcsolása közben: {e}")
 
+# Felhasználó hozzáadása
+def add_user():
+    username = user_entry.get()
+    password = password_entry.get()
+    if not username or not password:
+        messagebox.showwarning("Figyelem", "Kérlek adj meg egy felhasználónevet és jelszót!")
+        return
+
+    try:
+        # Felhasználó hozzáadása PowerShell paranccsal
+        command = f'New-LocalUser -Name "{username}" -Password (ConvertTo-SecureString "{password}" -AsPlainText -Force)'
+        subprocess.run(["powershell", "-Command", command], check=True)
+        messagebox.showinfo("Siker", f"A felhasználó '{username}' sikeresen hozzáadva.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a felhasználó hozzáadása közben: {e}")
+
+# SMBv1 protokoll bekapcsolása
+def enable_smbv1():
+    try:
+        # SMBv1 protokoll bekapcsolása PowerShell paranccsal
+        subprocess.run(["powershell", "Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"], check=True)
+        messagebox.showinfo("Siker", "Az SMBv1 protokoll sikeresen bekapcsolva.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt az SMBv1 protokoll bekapcsolása közben: {e}")
+
 # Grafikus felület létrehozása
 root = tk.Tk()
 root.title("Rendszer Beállítások")
@@ -108,6 +133,26 @@ snmp_button.pack(pady=10)
 # BitLocker kikapcsolása
 bitlocker_button = tk.Button(root, text="BitLocker kikapcsolása", command=disable_bitlocker)
 bitlocker_button.pack(pady=10)
+
+# Felhasználó hozzáadása
+user_label = tk.Label(root, text="Felhasználónév:")
+user_label.pack(pady=5)
+
+user_entry = tk.Entry(root)
+user_entry.pack(pady=5)
+
+password_label = tk.Label(root, text="Jelszó:")
+password_label.pack(pady=5)
+
+password_entry = tk.Entry(root, show="*")
+password_entry.pack(pady=5)
+
+add_user_button = tk.Button(root, text="Felhasználó hozzáadása", command=add_user)
+add_user_button.pack(pady=10)
+
+# SMBv1 protokoll bekapcsolása
+smbv1_button = tk.Button(root, text="SMBv1 protokoll bekapcsolása", command=enable_smbv1)
+smbv1_button.pack(pady=10)
 
 # Főciklus indítása
 root.mainloop()
