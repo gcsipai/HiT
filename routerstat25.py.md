@@ -1,4 +1,3 @@
-A szkript magyarázata
 Grafikus felület:
 
 A tkinter könyvtár segítségével létrehoztunk egy egyszerű grafikus felületet.
