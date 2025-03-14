@@ -1,11 +1,18 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog
 import subprocess
 import socket
+import time
+import threading
 
 # Számítógépnév lekérése
 def get_computer_name():
     return socket.gethostname()
+
+# Folyamatcsík frissítése
+def update_progress(value):
+    progress['value'] = value
+    root.update_idletasks()
 
 # Hostname (számítógépnév) változtatása
 def change_hostname():
@@ -14,65 +21,103 @@ def change_hostname():
         messagebox.showwarning("Figyelem", "Kérlek adj meg egy számítógénevet!")
         return
 
-    try:
-        # Számítógépnév változtatása PowerShell paranccsal
-        command = f"Rename-Computer -NewName {new_hostname} -Force"
-        subprocess.run(["powershell", "-Command", command], check=True)
-        messagebox.showinfo("Siker", f"A számítógépnév sikeresen megváltoztatva erre: {new_hostname}")
-        computer_name_label.config(text=f"Aktuális számítógépnév: {new_hostname}")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt a számítógépnév változtatása közben: {e}")
+    def change():
+        try:
+            update_progress(20)
+            # Számítógépnév változtatása PowerShell paranccsal
+            command = f"Rename-Computer -NewName {new_hostname} -Force"
+            subprocess.run(["powershell", "-Command", command], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", f"A számítógépnév sikeresen megváltoztatva erre: {new_hostname}")
+            computer_name_label.config(text=f"Aktuális számítógépnév: {new_hostname}")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt a számítógépnév változtatása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=change).start()
 
 # IPv6 be- és kikapcsolása
 def toggle_ipv6():
-    try:
-        # IPv6 állapotának lekérése
-        result = subprocess.run(
-            ["powershell", "Get-NetAdapterBinding -ComponentID ms_tcpip6"],
-            capture_output=True, text=True
-        )
-        if "Enabled" in result.stdout:
-            # IPv6 kikapcsolása
-            subprocess.run(["powershell", "Disable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
-            messagebox.showinfo("Siker", "IPv6 sikeresen kikapcsolva.")
-        else:
-            # IPv6 bekapcsolása
-            subprocess.run(["powershell", "Enable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
-            messagebox.showinfo("Siker", "IPv6 sikeresen bekapcsolva.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt az IPv6 állapotának változtatása közben: {e}")
+    def toggle():
+        try:
+            update_progress(20)
+            # IPv6 állapotának lekérése
+            result = subprocess.run(
+                ["powershell", "Get-NetAdapterBinding -ComponentID ms_tcpip6"],
+                capture_output=True, text=True
+            )
+            if "Enabled" in result.stdout:
+                # IPv6 kikapcsolása
+                subprocess.run(["powershell", "Disable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
+                update_progress(100)
+                messagebox.showinfo("Siker", "IPv6 sikeresen kikapcsolva.")
+            else:
+                # IPv6 bekapcsolása
+                subprocess.run(["powershell", "Enable-NetAdapterBinding -ComponentID ms_tcpip6 -Name *"], check=True)
+                update_progress(100)
+                messagebox.showinfo("Siker", "IPv6 sikeresen bekapcsolva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt az IPv6 állapotának változtatása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=toggle).start()
 
 # Idő szinkronizálása magyarországi szerverrel
 def sync_time():
-    try:
-        # Időszinkronizációs szerver beállítása (Budapesti szerver)
-        subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/config /syncfromflags:manual /manualpeerlist:ntp.iif.hu' -Verb RunAs"], check=True)
-        # Szolgáltatás újraindítása
-        subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/resync' -Verb RunAs"], check=True)
-        messagebox.showinfo("Siker", "Az idő sikeresen szinkronizálva a magyarországi szerverrel.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt az idő szinkronizálása közben: {e}")
+    def sync():
+        try:
+            update_progress(20)
+            # Időszinkronizációs szerver beállítása (Budapesti szerver)
+            subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/config /syncfromflags:manual /manualpeerlist:ntp.iif.hu' -Verb RunAs"], check=True)
+            update_progress(50)
+            # Szolgáltatás újraindítása
+            subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/resync' -Verb RunAs"], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", "Az idő sikeresen szinkronizálva a magyarországi szerverrel.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt az idő szinkronizálása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=sync).start()
 
 # SNMP szolgáltatás telepítése és bekapcsolása
 def install_snmp():
-    try:
-        # SNMP szolgáltatás telepítése
-        subprocess.run(["powershell", "Add-WindowsCapability -Online -Name SNMP.Client~~~~0.0.1.0"], check=True)
-        # SNMP szolgáltatás bekapcsolása
-        subprocess.run(["powershell", "Set-Service -Name SNMP -StartupType Automatic"], check=True)
-        subprocess.run(["powershell", "Start-Service -Name SNMP"], check=True)
-        messagebox.showinfo("Siker", "Az SNMP szolgáltatás sikeresen telepítve és bekapcsolva.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt az SNMP szolgáltatás telepítése közben: {e}")
+    def install():
+        try:
+            update_progress(20)
+            # SNMP szolgáltatás telepítése
+            subprocess.run(["powershell", "Add-WindowsCapability -Online -Name SNMP.Client~~~~0.0.1.0"], check=True)
+            update_progress(50)
+            # SNMP szolgáltatás bekapcsolása
+            subprocess.run(["powershell", "Set-Service -Name SNMP -StartupType Automatic"], check=True)
+            subprocess.run(["powershell", "Start-Service -Name SNMP"], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", "Az SNMP szolgáltatás sikeresen telepítve és bekapcsolva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt az SNMP szolgáltatás telepítése közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=install).start()
 
 # BitLocker kikapcsolása
 def disable_bitlocker():
-    try:
-        # BitLocker kikapcsolása PowerShell paranccsal
-        subprocess.run(["powershell", "Disable-BitLocker -MountPoint C:"], check=True)
-        messagebox.showinfo("Siker", "A BitLocker sikeresen kikapcsolva.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt a BitLocker kikapcsolása közben: {e}")
+    def disable():
+        try:
+            update_progress(20)
+            # BitLocker kikapcsolása PowerShell paranccsal
+            subprocess.run(["powershell", "Disable-BitLocker -MountPoint C:"], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", "A BitLocker sikeresen kikapcsolva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt a BitLocker kikapcsolása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=disable).start()
 
 # Felhasználó hozzáadása
 def add_user():
@@ -82,22 +127,36 @@ def add_user():
         messagebox.showwarning("Figyelem", "Kérlek adj meg egy felhasználónevet és jelszót!")
         return
 
-    try:
-        # Felhasználó hozzáadása PowerShell paranccsal
-        command = f'New-LocalUser -Name "{username}" -Password (ConvertTo-SecureString "{password}" -AsPlainText -Force)'
-        subprocess.run(["powershell", "-Command", command], check=True)
-        messagebox.showinfo("Siker", f"A felhasználó '{username}' sikeresen hozzáadva.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt a felhasználó hozzáadása közben: {e}")
+    def add():
+        try:
+            update_progress(20)
+            # Felhasználó hozzáadása PowerShell paranccsal
+            command = f'New-LocalUser -Name "{username}" -Password (ConvertTo-SecureString "{password}" -AsPlainText -Force)'
+            subprocess.run(["powershell", "-Command", command], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", f"A felhasználó '{username}' sikeresen hozzáadva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt a felhasználó hozzáadása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=add).start()
 
 # SMBv1 protokoll bekapcsolása
 def enable_smbv1():
-    try:
-        # SMBv1 protokoll bekapcsolása PowerShell paranccsal
-        subprocess.run(["powershell", "Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"], check=True)
-        messagebox.showinfo("Siker", "Az SMBv1 protokoll sikeresen bekapcsolva.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt az SMBv1 protokoll bekapcsolása közben: {e}")
+    def enable():
+        try:
+            update_progress(20)
+            # SMBv1 protokoll bekapcsolása PowerShell paranccsal
+            subprocess.run(["powershell", "Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", "Az SMBv1 protokoll sikeresen bekapcsolva.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt az SMBv1 protokoll bekapcsolása közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=enable).start()
 
 # Tartományhoz csatlakozás
 def join_domain():
@@ -116,13 +175,20 @@ def join_domain():
         messagebox.showwarning("Figyelem", "Kérlek adj meg egy jelszót!")
         return
 
-    try:
-        # Tartományhoz csatlakozás PowerShell paranccsal
-        command = f'Add-Computer -DomainName "{domain}" -Credential (New-Object System.Management.Automation.PSCredential("{username}", (ConvertTo-SecureString "{password}" -AsPlainText -Force))) -Restart'
-        subprocess.run(["powershell", "-Command", command], check=True)
-        messagebox.showinfo("Siker", f"A számítógép sikeresen csatlakozott a(z) '{domain}' tartományhoz.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("Hiba", f"Hiba történt a tartományhoz csatlakozás közben: {e}")
+    def join():
+        try:
+            update_progress(20)
+            # Tartományhoz csatlakozás PowerShell paranccsal
+            command = f'Add-Computer -DomainName "{domain}" -Credential (New-Object System.Management.Automation.PSCredential("{username}", (ConvertTo-SecureString "{password}" -AsPlainText -Force))) -Restart'
+            subprocess.run(["powershell", "-Command", command], check=True)
+            update_progress(100)
+            messagebox.showinfo("Siker", f"A számítógép sikeresen csatlakozott a(z) '{domain}' tartományhoz.")
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Hiba", f"Hiba történt a tartományhoz csatlakozás közben: {e}")
+        finally:
+            update_progress(0)
+
+    threading.Thread(target=join).start()
 
 # Grafikus felület létrehozása
 root = tk.Tk()
@@ -182,6 +248,10 @@ smbv1_button.pack(pady=10)
 # Tartományhoz csatlakozás
 domain_button = tk.Button(root, text="Tartományhoz csatlakozás", command=join_domain)
 domain_button.pack(pady=10)
+
+# Folyamatcsík
+progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+progress.pack(pady=20)
 
 # Főciklus indítása
 root.mainloop()
