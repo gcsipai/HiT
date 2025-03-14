@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 import subprocess
 import socket
 
@@ -46,9 +46,9 @@ def toggle_ipv6():
 def sync_time():
     try:
         # Időszinkronizációs szerver beállítása (Budapesti szerver)
-        subprocess.run(["powershell", "w32tm /config /syncfromflags:manual /manualpeerlist:ntp.iif.hu"], check=True)
+        subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/config /syncfromflags:manual /manualpeerlist:ntp.iif.hu' -Verb RunAs"], check=True)
         # Szolgáltatás újraindítása
-        subprocess.run(["powershell", "w32tm /resync"], check=True)
+        subprocess.run(["powershell", "Start-Process w32tm -ArgumentList '/resync' -Verb RunAs"], check=True)
         messagebox.showinfo("Siker", "Az idő sikeresen szinkronizálva a magyarországi szerverrel.")
     except subprocess.CalledProcessError as e:
         messagebox.showerror("Hiba", f"Hiba történt az idő szinkronizálása közben: {e}")
@@ -57,7 +57,7 @@ def sync_time():
 def install_snmp():
     try:
         # SNMP szolgáltatás telepítése
-        subprocess.run(["powershell", "Install-WindowsFeature -Name SNMP-Service"], check=True)
+        subprocess.run(["powershell", "Add-WindowsCapability -Online -Name SNMP.Client~~~~0.0.1.0"], check=True)
         # SNMP szolgáltatás bekapcsolása
         subprocess.run(["powershell", "Set-Service -Name SNMP -StartupType Automatic"], check=True)
         subprocess.run(["powershell", "Start-Service -Name SNMP"], check=True)
@@ -98,6 +98,31 @@ def enable_smbv1():
         messagebox.showinfo("Siker", "Az SMBv1 protokoll sikeresen bekapcsolva.")
     except subprocess.CalledProcessError as e:
         messagebox.showerror("Hiba", f"Hiba történt az SMBv1 protokoll bekapcsolása közben: {e}")
+
+# Tartományhoz csatlakozás
+def join_domain():
+    domain = simpledialog.askstring("Tartományhoz csatlakozás", "Add meg a tartománynevet (pl. example.com):")
+    if not domain:
+        messagebox.showwarning("Figyelem", "Kérlek adj meg egy tartománynevet!")
+        return
+
+    username = simpledialog.askstring("Tartományhoz csatlakozás", "Add meg a tartományi adminisztrátor felhasználónevet:")
+    if not username:
+        messagebox.showwarning("Figyelem", "Kérlek adj meg egy felhasználónevet!")
+        return
+
+    password = simpledialog.askstring("Tartományhoz csatlakozás", "Add meg a tartományi adminisztrátor jelszavát:", show="*")
+    if not password:
+        messagebox.showwarning("Figyelem", "Kérlek adj meg egy jelszót!")
+        return
+
+    try:
+        # Tartományhoz csatlakozás PowerShell paranccsal
+        command = f'Add-Computer -DomainName "{domain}" -Credential (New-Object System.Management.Automation.PSCredential("{username}", (ConvertTo-SecureString "{password}" -AsPlainText -Force))) -Restart'
+        subprocess.run(["powershell", "-Command", command], check=True)
+        messagebox.showinfo("Siker", f"A számítógép sikeresen csatlakozott a(z) '{domain}' tartományhoz.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("Hiba", f"Hiba történt a tartományhoz csatlakozás közben: {e}")
 
 # Grafikus felület létrehozása
 root = tk.Tk()
@@ -153,6 +178,10 @@ add_user_button.pack(pady=10)
 # SMBv1 protokoll bekapcsolása
 smbv1_button = tk.Button(root, text="SMBv1 protokoll bekapcsolása", command=enable_smbv1)
 smbv1_button.pack(pady=10)
+
+# Tartományhoz csatlakozás
+domain_button = tk.Button(root, text="Tartományhoz csatlakozás", command=join_domain)
+domain_button.pack(pady=10)
 
 # Főciklus indítása
 root.mainloop()
