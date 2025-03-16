@@ -231,10 +231,6 @@ def run_windows_update():
 root = tk.Tk()
 root.title("SySTool2025")
 
-# Ablak mérete és felbontás
-root.geometry("600x800")  # Állítsd be a kívánt méretet
-root.resizable(False, False)  # Letiltja az ablak átméretezését
-
 # Számítógépnév megjelenítése
 computer_name = get_computer_name()
 computer_name_label = tk.Label(root, text=f"Aktuális számítógépnév: {computer_name}")
@@ -313,10 +309,6 @@ windows_update_button.grid(row=16, column=0, columnspan=2, pady=10)
 # Folyamatcsík
 progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
 progress.grid(row=17, column=0, columnspan=2, pady=20)
-
-# Lábléc hozzáadása
-footer_label = tk.Label(root, text="SySTool2025 @ HiT", font=("Arial", 8), fg="gray")
-footer_label.grid(row=18, column=0, columnspan=2, pady=10)
 
 # Főciklus indítása
 root.mainloop()
